@@ -197,7 +197,7 @@ def main():
     try:
         input_file = InputFile(args.input)
     except IOError:
-        log.error('Error reading file')
+        print('Error reading file')
         os.exit(1)
 
     input_file.post_process()
