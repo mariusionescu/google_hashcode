@@ -24,8 +24,6 @@ class InputFile(object):
 
     REQUESTS = None
 
-    SCORES = None
-
     VIDEOS_ENDPOINTS = None
 
     CACHE_VIDEOS = None
@@ -36,6 +34,8 @@ class InputFile(object):
 
     CANDIDATES = None
 
+    NON_0_CACHES = None
+
     def __init__(self, path):
 
         self.input = open(path)
@@ -44,7 +44,6 @@ class InputFile(object):
         self.VIDEOS = get_ints(self.input.readline())
         self.ENDPOINTS = {}
         self.REQUESTS = defaultdict(dict)
-        self.SCORES = []
 
         self.VIDEOS_ENDPOINTS = defaultdict(set)
         self.CACHE_VIDEOS = defaultdict(list)
@@ -54,6 +53,8 @@ class InputFile(object):
         self.ENDPOINTS_VIDEOS_LATENCY = defaultdict(dict)
 
         self.CANDIDATES = []
+
+        self.NON_0_CACHES = set()
 
         for endpoint_id in xrange(self.E):
 
@@ -91,19 +92,24 @@ class InputFile(object):
     def parse_videos(self):
 
         CANDIDATES = []
+        unsorted_scores = []
 
         for video_id in xrange(self.V):
             for cache_id in xrange(self.C):
                 score = self.compute_score(video_id, cache_id)
-                self.SCORES.append((video_id, cache_id, score))
+                unsorted_scores.append((video_id, cache_id, score))
 
-        unsorted_scores = self.SCORES
+        for i in xrange(len(unsorted_scores)):
+        	vid, cid, sc = unsorted_scores[i]
+        	if sc > 0:
+        		self.NON_0_CACHES.add(i)
 
         while True:
-
-            self.SCORES = sorted(self.SCORES, key=lambda x: -x[2])
-
-            video_id, cache_id, score = self.SCORES[0]
+            video_id, cache_id, score = 0, 0, 0
+            for index in self.NON_0_CACHES:
+            	vid, cid, sc = unsorted_scores[index]
+                if score < sc:
+                    video_id, cache_id, score = vid, cid, sc
 
             if score == 0:
                 break
@@ -111,7 +117,7 @@ class InputFile(object):
             index = video_id * self.C + cache_id
             if self.VIDEOS[video_id] > self.CACHE_FREE[cache_id]:
                 unsorted_scores[index] = (video_id, cache_id, 0)
-                self.SCORES = sorted(unsorted_scores, key=lambda x: -x[2])
+                self.NON_0_CACHES.remove(index)
                 continue
 
             self.CANDIDATES.append((video_id, cache_id))
@@ -142,9 +148,9 @@ class InputFile(object):
                 score = self.compute_score(video_id, cache_id)
 
                 unsorted_scores[index] = (video_id, cache_id, score)
+                if score == 0 and index in self.NON_0_CACHES:
+                	self.NON_0_CACHES.remove(index)
                 index += 1
-
-            self.SCORES = sorted(unsorted_scores, key=lambda x: -x[2])
 
     def save_output(self):
 
@@ -197,7 +203,7 @@ def main():
     try:
         input_file = InputFile(args.input)
     except IOError:
-        print('Error reading file')
+        log.error('Error reading file')
         os.exit(1)
 
     input_file.post_process()
