@@ -150,15 +150,11 @@ class InputFile(object):
 
 		caches = defaultdict(list)
 
-		
-
+	
 
 		for video_id, cache_id in self.CANDIDATES:
 			caches[cache_id].append(video_id)
 		
-
-		
-
 
 	 	with open('output.txt', 'w') as f:
 
