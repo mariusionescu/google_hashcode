@@ -8,7 +8,7 @@ from collections import defaultdict
 
 
 def get_ints(line):
-    return map(int, line.split())
+    return map(int, line.strip().split())
 
 
 class InputFile(object):
