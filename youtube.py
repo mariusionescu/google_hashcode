@@ -34,6 +34,8 @@ class InputFile(object):
 
     CANDIDATES = None
 
+    NON_0_CACHES = None
+
     def __init__(self, path):
 
         self.input = open(path)
@@ -51,6 +53,8 @@ class InputFile(object):
         self.ENDPOINTS_VIDEOS_LATENCY = defaultdict(dict)
 
         self.CANDIDATES = []
+
+        self.NON_0_CACHES = set()
 
         for endpoint_id in xrange(self.E):
 
@@ -95,9 +99,15 @@ class InputFile(object):
                 score = self.compute_score(video_id, cache_id)
                 unsorted_scores.append((video_id, cache_id, score))
 
+        for i in xrange(len(unsorted_scores)):
+        	vid, cid, sc = unsorted_scores[i]
+        	if sc > 0:
+        		self.NON_0_CACHES.add(i)
+
         while True:
             video_id, cache_id, score = 0, 0, 0
-            for vid, cid, sc in unsorted_scores:
+            for index in self.NON_0_CACHES:
+            	vid, cid, sc = unsorted_scores[index]
                 if score < sc:
                     video_id, cache_id, score = vid, cid, sc
 
@@ -107,6 +117,7 @@ class InputFile(object):
             index = video_id * self.C + cache_id
             if self.VIDEOS[video_id] > self.CACHE_FREE[cache_id]:
                 unsorted_scores[index] = (video_id, cache_id, 0)
+                self.NON_0_CACHES.remove(index)
                 continue
 
             self.CANDIDATES.append((video_id, cache_id))
@@ -137,6 +148,8 @@ class InputFile(object):
                 score = self.compute_score(video_id, cache_id)
 
                 unsorted_scores[index] = (video_id, cache_id, score)
+                if score == 0 and index in self.NON_0_CACHES:
+                	self.NON_0_CACHES.remove(index)
                 index += 1
 
     def save_output(self):
