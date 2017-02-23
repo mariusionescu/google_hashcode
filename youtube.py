@@ -11,6 +11,7 @@ import copy
 def get_ints(line):
 	return map(int, line.split())
 
+
 class InputFile(object):
 	V = None
 	E = None
@@ -23,8 +24,6 @@ class InputFile(object):
 	ENDPOINTS = None
 
 	REQUESTS = None
-
-	SCORES = None
 
 	VIDEOS_ENDPOINTS = None
 
@@ -44,7 +43,6 @@ class InputFile(object):
 		self.VIDEOS = get_ints(self.input.readline())
 		self.ENDPOINTS = {}
 		self.REQUESTS = defaultdict(dict)
-		self.SCORES = []
 
 		self.VIDEOS_ENDPOINTS = defaultdict(set)
 		self.CACHE_VIDEOS = defaultdict(list)
@@ -98,19 +96,18 @@ class InputFile(object):
 	def parse_videos(self):
 
 		CANDIDATES = []
+		unsorted_scores = []
 
 		for video_id in xrange(self.V):
 			for cache_id in xrange(self.C):
 				score = self.compute_score(video_id, cache_id)
-				self.SCORES.append((video_id, cache_id, score))
-
-		unsorted_scores = self.SCORES
+				unsorted_scores.append((video_id, cache_id, score))
 
 		while True:
-			
-			self.SCORES = sorted(self.SCORES, key=lambda x: -x[2])
-			
-			video_id, cache_id, score = self.SCORES[0]
+			video_id, cache_id, score = 0, 0, 0
+			for vid, cid, sc in unsorted_scores:
+				if score < sc:
+					video_id, cache_id, score = vid, cid, sc
 
 			if score == 0:
 				break
@@ -119,7 +116,6 @@ class InputFile(object):
 			index = video_id * self.C + cache_id
 			if self.VIDEOS[video_id] > self.CACHE_FREE[cache_id]:
 				unsorted_scores[index] = (video_id, cache_id, 0)
-				self.SCORES = sorted(unsorted_scores, key=lambda x: -x[2])
 				continue
 
 
@@ -151,8 +147,6 @@ class InputFile(object):
 
 				unsorted_scores[index] = (video_id, cache_id, score)
 				index += 1
-
-			self.SCORES = sorted(unsorted_scores, key=lambda x: -x[2])
 
 
 
