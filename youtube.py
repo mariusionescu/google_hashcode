@@ -115,6 +115,14 @@ class InputFile(object):
 			if score == 0:
 				break
 
+
+			index = video_id * self.C + cache_id
+			if self.VIDEOS[video_id] > self.CACHE_FREE[cache_id]:
+				unsorted_scores[index] = (video_id, cache_id, 0)
+				self.SCORES = sorted(unsorted_scores, key=lambda x: -x[2])
+				continue
+
+
 			self.CANDIDATES.append((video_id, cache_id))
 
 			print 'SELECTING: ', video_id, cache_id, score
@@ -131,6 +139,9 @@ class InputFile(object):
 
 			self.CACHE_FREE[cache_id] -= self.VIDEOS[video_id]
 
+			if (self.CACHE_FREE[cache_id] < 0):
+				print cache_id, video_id, self.CACHE_FREE[cache_id], self.VIDEOS[video_id], score
+
 			self.CACHE_VIDEOS[cache_id].append(video_id)
 
 			index = video_id * self.C 
@@ -142,7 +153,6 @@ class InputFile(object):
 				index += 1
 
 			self.SCORES = sorted(unsorted_scores, key=lambda x: -x[2])
-
 
 
 
@@ -212,7 +222,7 @@ def main():
 	input_file.parse_videos()
 	input_file.save_output()	
 
-	pprint.pprint(input_file.__dict__)
+	#pprint.pprint(input_file.__dict__)
 	
 
 if __name__ == 	'__main__':
