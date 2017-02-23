@@ -100,14 +100,14 @@ class InputFile(object):
                 unsorted_scores.append((video_id, cache_id, score))
 
         for i in xrange(len(unsorted_scores)):
-        	vid, cid, sc = unsorted_scores[i]
-        	if sc > 0:
-        		self.NON_0_CACHES.add(i)
+            vid, cid, sc = unsorted_scores[i]
+            if sc > 0:
+                self.NON_0_CACHES.add(i)
 
         while True:
             video_id, cache_id, score = 0, 0, 0
             for index in self.NON_0_CACHES:
-            	vid, cid, sc = unsorted_scores[index]
+                vid, cid, sc = unsorted_scores[index]
                 if score < sc:
                     video_id, cache_id, score = vid, cid, sc
 
@@ -149,7 +149,7 @@ class InputFile(object):
 
                 unsorted_scores[index] = (video_id, cache_id, score)
                 if score == 0 and index in self.NON_0_CACHES:
-                	self.NON_0_CACHES.remove(index)
+                    self.NON_0_CACHES.remove(index)
                 index += 1
 
     def save_output(self):
