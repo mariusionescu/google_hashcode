@@ -5,6 +5,7 @@ import logging
 import os
 import pprint
 from collections import defaultdict
+from heapdict import heapdict
 
 
 def get_ints(line):
@@ -24,9 +25,11 @@ class InputFile(object):
 
     REQUESTS = None
 
-    VIDEOS_ENDPOINTS = None
+    VIDEO_CACHE_ENDPOINTS = None
 
     CACHE_VIDEOS = None
+
+    CACHE_ENDPOINTS = None
 
     CACHE_FREE = None
 
@@ -34,27 +37,26 @@ class InputFile(object):
 
     CANDIDATES = None
 
-    NON_0_CACHES = None
-
     def __init__(self, path):
 
         self.input = open(path)
 
         self.V, self.E, self.R, self.C, self.X = get_ints(self.input.readline())
         self.VIDEOS = get_ints(self.input.readline())
+
         self.ENDPOINTS = {}
         self.REQUESTS = defaultdict(dict)
 
-        self.VIDEOS_ENDPOINTS = defaultdict(set)
+        self.VIDEO_CACHE_ENDPOINTS = defaultdict(lambda : defaultdict(set))
         self.CACHE_VIDEOS = defaultdict(list)
 
         self.CACHE_FREE = {}
 
         self.ENDPOINTS_VIDEOS_LATENCY = defaultdict(dict)
 
-        self.CANDIDATES = []
+        self.CACHE_ENDPOINTS = defaultdict(set)
 
-        self.NON_0_CACHES = set()
+        self.CANDIDATES = []
 
         for endpoint_id in xrange(self.E):
 
@@ -65,6 +67,7 @@ class InputFile(object):
             for i in xrange(cache_count):
                 cache_id, cache_latency = get_ints(self.input.readline())
                 self.ENDPOINTS[endpoint_id]['caches'][cache_id] = cache_latency
+                self.CACHE_ENDPOINTS[cache_id].add(endpoint_id)
 
         for request_id in xrange(self.R):
             video_id, endpoint_id, requests_count = get_ints(self.input.readline())
@@ -84,61 +87,55 @@ class InputFile(object):
         for video_id in self.REQUESTS:
             for endpoint_id in self.REQUESTS[video_id]:
                 if endpoint_id in self.ENDPOINTS:
-                    self.VIDEOS_ENDPOINTS[video_id].add(endpoint_id)
+                    for cache_id in self.ENDPOINTS[endpoint_id]['caches']:
+                        self.VIDEO_CACHE_ENDPOINTS[video_id][cache_id].add(endpoint_id)
 
         for cache_id in xrange(self.C):
             self.CACHE_FREE[cache_id] = self.X
 
+    def get_best_score(self, scores_heap):
+        key, score = scores_heap.popitem()
+        video_id, cache_id = map(int, key.split('-'))
+
+        return (video_id, cache_id, score)
+
     def parse_videos(self):
 
         CANDIDATES = []
-        unsorted_scores = []
+        scores_heap = heapdict()
 
         for video_id in xrange(self.V):
             for cache_id in xrange(self.C):
                 score = self.compute_score(video_id, cache_id)
-                unsorted_scores.append((video_id, cache_id, score))
+                if score > 0:
+                    scores_heap[str(video_id) + '-' + str(cache_id)] = score
 
-        for i in xrange(len(unsorted_scores)):
-            vid, cid, sc = unsorted_scores[i]
-            if sc > 0:
-                self.NON_0_CACHES.add(i)
 
         while True:
-            video_id, cache_id, score = 0, 0, 0
-            for index in self.NON_0_CACHES:
-                vid, cid, sc = unsorted_scores[index]
-                if score < sc:
-                    video_id, cache_id, score = vid, cid, sc
+            video_id, cache_id, score = self.get_best_score(scores_heap)
 
             if score == 0:
                 break
 
             index = video_id * self.C + cache_id
             if self.VIDEOS[video_id] > self.CACHE_FREE[cache_id]:
-                unsorted_scores[index] = (video_id, cache_id, 0)
-                self.NON_0_CACHES.remove(index)
                 continue
 
             self.CANDIDATES.append((video_id, cache_id))
 
             print 'SELECTING: ', video_id, cache_id, score
 
-            for endpoint_id, endpoint in self.ENDPOINTS.iteritems():
-                if cache_id in endpoint['caches']:
-
-                    if not video_id in self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id]:
-                        self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id] = endpoint['caches'][
-                            cache_id]
-                    else:
-                        self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id] = min(
-                            self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id],
-                            endpoint['caches'][cache_id])
+            for endpoint_id in self.CACHE_ENDPOINTS[cache_id]:
+                if not video_id in self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id]:
+                    self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id] = self.ENDPOINTS[
+                        endpoint_id]['caches'][cache_id]
+                else:
+                    self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id] = min(
+                        self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id],
+                        self.ENDPOINTS[endpoint_id]['caches'][cache_id])
 
             self.CACHE_FREE[cache_id] -= self.VIDEOS[video_id]
 
-            if (self.CACHE_FREE[cache_id] < 0):
-                print cache_id, video_id, self.CACHE_FREE[cache_id], self.VIDEOS[video_id], score
 
             self.CACHE_VIDEOS[cache_id].append(video_id)
 
@@ -146,10 +143,8 @@ class InputFile(object):
 
             for cache_id in xrange(self.C):
                 score = self.compute_score(video_id, cache_id)
+                scores_heap[str(video_id) + '-' + str(cache_id)] = score
 
-                unsorted_scores[index] = (video_id, cache_id, score)
-                if score == 0 and index in self.NON_0_CACHES:
-                    self.NON_0_CACHES.remove(index)
                 index += 1
 
     def save_output(self):
@@ -174,23 +169,21 @@ class InputFile(object):
 
         score = 0
 
-        for endpoint_id in self.VIDEOS_ENDPOINTS[video_id]:
-            if cache_id in self.ENDPOINTS[endpoint_id]['caches']:
+        for endpoint_id in self.VIDEO_CACHE_ENDPOINTS[video_id][cache_id]:
+            current_score = (self.ENDPOINTS[endpoint_id]['latency'] -
+                                 self.ENDPOINTS[endpoint_id]['caches'][cache_id]) * \
+                                self.REQUESTS[video_id][endpoint_id]
 
-                if not video_id in self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id]:
-                    score += (self.ENDPOINTS[endpoint_id]['latency'] -
-                              self.ENDPOINTS[endpoint_id]['caches'][cache_id]) * \
+            if not video_id in self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id]:
+                score += current_score
+            else:
+                best_score = (self.ENDPOINTS[endpoint_id]['latency'] -
+                              self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id]) * \
                              self.REQUESTS[video_id][endpoint_id]
-                else:
-                    best_score = (self.ENDPOINTS[endpoint_id]['latency'] -
-                                  self.ENDPOINTS_VIDEOS_LATENCY[endpoint_id][video_id]) * \
-                                 self.REQUESTS[video_id][endpoint_id]
-                    current_score = (self.ENDPOINTS[endpoint_id]['latency'] -
-                                     self.ENDPOINTS[endpoint_id]['caches'][cache_id]) * \
-                                    self.REQUESTS[video_id][endpoint_id]
-                    score += max(0, current_score - best_score)
+                
+                score += max(0, current_score - best_score)
 
-        return score
+        return score * 1.0 / video_size
 
 
 def main():
